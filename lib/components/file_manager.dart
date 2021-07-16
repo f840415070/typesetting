@@ -4,16 +4,16 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:fast_gbk/fast_gbk.dart';
 
-class DirectoryView extends StatefulWidget {
-  final ValueChanged<bool> showDirectoryView;
+class FileManager extends StatefulWidget {
+  final VoidCallback closeFileManager;
 
-  DirectoryView({Key key, this.showDirectoryView}): super(key: key);
+  FileManager({Key key, this.closeFileManager}): super(key: key);
 
   @override
-  State<StatefulWidget> createState() => _DirectoryViewState();
+  State<StatefulWidget> createState() => _FileManagerState();
 }
 
-class _DirectoryViewState extends State<DirectoryView> {
+class _FileManagerState extends State<FileManager> {
   final String _rootPath = '/storage/emulated/0';
   final RegExp txt = RegExp(r"\.txt$");
   final List<String> endSymbols = ['。', '」', '！', '？', '”'];
@@ -29,12 +29,14 @@ class _DirectoryViewState extends State<DirectoryView> {
   }
 
   // 关闭文件视图
-  void closeDirectoryView() => widget.showDirectoryView(false);
+  void close() {
+    widget.closeFileManager();
+  }
 
   // 返回上一级
   void pathBack() {
     _pathStack.removeLast();
-    if (_pathStack.length < 1) return closeDirectoryView();
+    if (_pathStack.length < 1) return close();
     pathUpdate(path: _pathStack.last, isBack: true);
   }
   // 更新当前文件路径
@@ -206,7 +208,7 @@ class _DirectoryViewState extends State<DirectoryView> {
                 bottom: 0, left: 0, right: 0, height: 50,
                 child: Container(
                   child: FlatButton(
-                    onPressed: closeDirectoryView,
+                    onPressed: close,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.only(bottomLeft: Radius.circular(10), bottomRight: Radius.circular(10))
                     ),

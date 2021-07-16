@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'homepage.dart';
+import 'pages/homepage.dart';
 
 void main() {
-  runApp(MyApp());
+  runApp(Typesetting());
 }
 
-class MyApp extends StatelessWidget {
+class Typesetting extends StatelessWidget {
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
