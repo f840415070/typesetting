@@ -10,6 +10,7 @@ class Homepage extends StatefulWidget {
 
 class _HomepageState extends State<Homepage> {
   bool isShowFileManager = false;
+  bool isLoading = false;
 
   // 在授权状态下打开文件管理器
   void openFileManager() async {
@@ -21,9 +22,11 @@ class _HomepageState extends State<Homepage> {
   }
 
   void closeFileManager() {
-    setState(() {
-      isShowFileManager = false;
-    });
+    setState(() => isShowFileManager = false);
+  }
+
+  void setLoading(bool loading) {
+    setState(() => isLoading = loading);
   }
 
   @override
@@ -61,8 +64,18 @@ class _HomepageState extends State<Homepage> {
           ),
           isShowFileManager ? Positioned(
             top: 0, right: 0, bottom: 0, left: 0,
-            child: FileManager(closeFileManager: closeFileManager),
-          ): Container()
+            child: FileManager(onClose: closeFileManager, setLoading: setLoading),
+          ): Container(),
+          isLoading ? Positioned(
+            top: 0, right: 0, bottom: 0, left: 0,
+            child: Container(
+              width: double.infinity, height: double.infinity,
+              color: Color.fromARGB(128, 0, 0, 0),
+              child: Center(
+                child: Text('处理中...', style: TextStyle(color: Colors.white, fontSize: 18, inherit: false)),
+              ),
+            )
+          ) : Container()
         ],
       ),
     );
