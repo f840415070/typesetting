@@ -9,7 +9,7 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
     <application
         android:name="io.flutter.app.FlutterApplication"
-        android:label="Typesetting"
+        android:label="TxtTypesetting"
         android:icon="@mipmap/icon_typesetting"
         android:requestLegacyExternalStorage="true">
         <activity
