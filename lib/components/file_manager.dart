@@ -2,110 +2,127 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'dart:io';
 import 'dart:convert';
+import 'package:path/path.dart' as PATH;
 import 'package:fast_gbk/fast_gbk.dart';
+import './file_list.dart';
+
+const List<String> ENDINGS = ['。', '」', '！', '？', '”'];
+const String ROOT = '/storage/emulated/0';
+final RegExp TXT = RegExp(r"\.txt$");
+
+String handleLines(List<String> lines) {
+  String result = '';
+  String lastWord = '';
+  bool addFlag = false;
+
+  for (var line in lines) {
+    line = line.trimRight();
+    if (line == '') continue;
+    if (!ENDINGS.any((item) => item == lastWord) || line.trimLeft()[0] == '」') {
+      addFlag = true;
+    }
+    if (addFlag) result += line.trim();
+    else result += '\n$line';
+    addFlag = false;
+    lastWord = line[line.length - 1];
+  }
+  return result;
+}
+
+Future getTextDetail(String path) async {
+  List<String> lines;
+  var encoding;
+  File textFile = File(path);
+
+  try {
+    lines = await textFile.readAsLines();
+    encoding = utf8;
+  } catch (e) {
+    lines = await textFile.readAsLines(encoding: gbk);
+    encoding = gbk;
+  }
+  return {
+    'lines': lines,
+    'encoding': encoding
+  };
+}
 
 class FileManager extends StatefulWidget {
-  final VoidCallback closeFileManager;
+  final VoidCallback onClose;
+  final Function(bool) setLoading;
 
-  FileManager({Key key, this.closeFileManager}): super(key: key);
+  FileManager({Key key, this.onClose, this.setLoading}): super(key: key);
 
   @override
   State<StatefulWidget> createState() => _FileManagerState();
 }
 
 class _FileManagerState extends State<FileManager> {
-  final String _rootPath = '/storage/emulated/0';
-  final RegExp txt = RegExp(r"\.txt$");
-  final List<String> endSymbols = ['。', '」', '！', '？', '”'];
-  List<String> _pathStack = [];
-  String _currentDirName;
-  List _dirFileList = [];
-  bool _canUse = true;
+  final List<String> history = [];
+  String currentDirName;
+  List fileList = [];
 
   @override
   void initState() {
     super.initState();
-    pathUpdate();
+    goUpdate();
   }
 
   // 关闭文件视图
   void close() {
-    widget.closeFileManager();
+    widget.onClose();
   }
 
   // 返回上一级
-  void pathBack() {
-    _pathStack.removeLast();
-    if (_pathStack.length < 1) return close();
-    pathUpdate(path: _pathStack.last, isBack: true);
+  void goBack() {
+    history.removeLast();
+    if (history.length < 1) return close();
+    goUpdate(path: history.last, isBack: true);
   }
+
   // 更新当前文件路径
-  void pathUpdate({String path, bool isBack: false}) {
-    if (path == null) path = _rootPath;
-    setState(() {
-      _currentDirName = path.split('/').last;
-      if (!isBack) _pathStack.add(path);
-      dirFileListFor(path);
+  void goUpdate({String path, bool isBack: false}) {
+    if (path == null) path = ROOT;
+    if (!isBack) history.add(path);
+    setFileListOf(path);
+    setState(() => currentDirName = PATH.basename(path));
+  }
+
+  // 获取路径下文件目录
+  void setFileListOf(String path) {
+    Directory(path).list().toList().then((list) {
+      list = list.where((item) => PATH.basename(item.path)[0] != '.').toList();
+      list.sort((a, b) => a.path.toLowerCase().compareTo(b.path.toLowerCase()));
+      setState(() => fileList = list);
     });
   }
-  // 获取路径下文件目录
-  void dirFileListFor(String path) {
-    Directory thisDir = Directory(path);
-    thisDir.list().toList().then((list) => setState(() => _dirFileList = list));
-  }
-  void tapDirFileItem(item) {
+
+  void onTapItem(item) {
     if (item is Directory) {
-      pathUpdate(path: item.path);
+      goUpdate(path: item.path);
     } else {
-      if (txt.hasMatch(item.path) && _canUse) {
-        setState(() {
-          _canUse = false;
-        });
-        typesetting(item.path);
+      if (TXT.hasMatch(item.path)) {
+        handleTxtFile(item.path);
       } else {
-        showDialogOf('目标文件不正确，请重新选择一个txt文本文件');
+        showDialogOf('目标文件不正确，请重新选择一个 [name].txt 文本文件');
       }
     }
   }
 
-  void typesetting(String path) async {
-    File file = File(path);
-    var pathSlices = path.split('/');
-    pathSlices.last = '【副本】' + pathSlices.last;
-    File targetFile = File(pathSlices.join('/'));
-    targetFile.createSync();
+  void handleTxtFile(String path) async {
+    widget.setLoading(true);
+    String newFilename = '【副本】' + PATH.basename(path);
+    String newFilePath = PATH.join(PATH.dirname(path), newFilename);
+    Map textDetail = await getTextDetail(path);
+    String result = handleLines(textDetail['lines']);
 
-    String resultStr = '';
-    String lastLineWord = '';
-    bool addFlag = false;
-    List<String> lines;
-    var encoding;
+    File newFile = File(newFilePath);
+    newFile.createSync();
+    newFile.writeAsString(result, mode: FileMode.append, encoding: textDetail['encoding']);
 
-    try {
-      lines = await file.readAsLines();
-      encoding = utf8;
-    } catch (e) {
-      lines = await file.readAsLines(encoding: gbk);
-      encoding = gbk;
-    }
-    for (var line in lines) {
-      line = line.trimRight();
-      if (line == '') continue;
-      if (!endSymbols.any((element) => element == lastLineWord)) addFlag = true;
-      if (line.trimLeft()[0] == '」') addFlag = true;
-
-      if (addFlag) resultStr += line.trim();
-      else resultStr += '\n$line';
-
-      addFlag = false;
-      lastLineWord = line[line.length - 1];
-    }
-    targetFile.writeAsString(resultStr, mode: FileMode.append, encoding: encoding);
-    showDialogOf('排版成功！已在该路径下生成文件：${pathSlices.last}');
-    setState(() {
-      _canUse = true;
-    });
-    dirFileListFor(_pathStack.last);
+    widget.setLoading(false);
+    showDialogOf('排版成功！已在该路径下生成文件：$newFilename');
+    setFileListOf(history.last);
   }
 
   Future<bool> showDialogOf(String content) {
@@ -124,21 +141,6 @@ class _FileManagerState extends State<FileManager> {
           );
         }
     );
-  }
-
-  // 文件目录列表
-  List<Widget> dirFileListWidgets() {
-    List<Widget> _listWidgets = [];
-    _dirFileList.forEach((item) {
-      _listWidgets.add(ListTile(
-        leading: item is Directory ?
-          Icon(Icons.folder, color: Color.fromARGB(255, 135, 206, 235)) :
-          Icon(Icons.description, color: Color.fromARGB(255, 102, 153, 102)),
-        title: Text(item.path.split('/').last, maxLines: 2, style: TextStyle(inherit: false, color: Colors.black),),
-        onTap: () {tapDirFileItem(item);}
-      ));
-    });
-    return ListTile.divideTiles(tiles: _listWidgets, context: context).toList();
   }
 
   @override
@@ -168,7 +170,7 @@ class _FileManagerState extends State<FileManager> {
                   child: Column(
                     children: [
                       Text(
-                          _currentDirName,
+                          currentDirName,
                           style: TextStyle(fontSize: 15, color: Color.fromARGB(255, 38, 38, 38), inherit: false)
                       ),
                       Container(
@@ -181,7 +183,7 @@ class _FileManagerState extends State<FileManager> {
                                 color: Colors.white,
                                 child: Icon(Icons.arrow_back, size: 15),
                                 padding: EdgeInsets.only(left: 2, right: 2),
-                                onPressed: pathBack,
+                                onPressed: goBack,
                               ),
                             )
                           ],
@@ -197,9 +199,7 @@ class _FileManagerState extends State<FileManager> {
                 child: Container(
                   child: MediaQuery.removePadding(
                       context: context, removeTop: true,
-                      child: ListView(
-                        children: dirFileListWidgets(),
-                      )
+                      child: FileList(fileList, onTapItem)
                   ),
                 ),
               ),
